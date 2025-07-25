@@ -30,22 +30,20 @@ public class UserController {
     private final IRoleService roleService;
 
     /**
-     * Obtiene todos los usuarios.
-     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     * Obtiene todos los usuarios. Operación sensible, solo para administradores.
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('READ')")
+    @PreAuthorize("hasAuthority('UPDATE')")
     public ResponseEntity<List<UserSec>> getAllUsers() {
         List<UserSec> users = userService.findAll();
         return ResponseEntity.ok(users);
     }
 
     /**
-     * Obtiene un usuario por su ID.
-     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     * Obtiene un usuario por su ID. Operación sensible, solo para administradores.
      */
     @GetMapping("/{idUserSec}")
-    @PreAuthorize("hasAuthority('READ')")
+    @PreAuthorize("hasAuthority('UPDATE')")
     public ResponseEntity<UserSec> getUserById(@PathVariable Long idUserSec) {
         Optional<UserSec> user = userService.findById(idUserSec);
         return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
