@@ -34,7 +34,7 @@ public class UserController {
      * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('READ')") // para que el usuario comun no vea todos los usuarios
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<List<UserSec>> getAllUsers() {
         List<UserSec> users = userService.findAll();
         return ResponseEntity.ok(users);
@@ -45,7 +45,7 @@ public class UserController {
      * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
      */
     @GetMapping("/{idUserSec}")
-    @PreAuthorize("hasAuthority('READ')") // para que el usuario comun no busque por id
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<UserSec> getUserById(@PathVariable Long idUserSec) {
         Optional<UserSec> user = userService.findById(idUserSec);
         return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
