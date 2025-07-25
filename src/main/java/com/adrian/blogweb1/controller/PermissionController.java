@@ -5,7 +5,6 @@ import com.adrian.blogweb1.exception.ResourceNotFoundException;
 import com.adrian.blogweb1.model.Permission;
 import com.adrian.blogweb1.service.IPermissionService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,29 +24,47 @@ public class PermissionController {
 
     private final IPermissionService permissionService;
 
+
+    /**
+     * Obtiene todos los permisos.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping
-    @PreAuthorize("hasRole('PROFESOR') or hasRole('ESTUDIANTE') and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<List<Permission>> getAllPermissions() {
         List<Permission> permissions = permissionService.findAll(); // Especifica el tipo <Permission>
         return ResponseEntity.ok(permissions);
     }
 
+    /**
+     * Obtiene un permiso por su ID.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping("/{idPermission}") // Usa el mismo nombre que el parámetro del método
-    @PreAuthorize("hasRole('PROFESOR') or hasRole('ESTUDIANTE') and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<Permission> getPermissionById(@PathVariable Long idPermission) {
         Optional<Permission> permission = permissionService.findById(idPermission);
         return permission.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Crea un nuevo permiso.
+     * Requiere el permiso 'CREATE'. Solo accesible por ADMIN.
+     */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('CREATE')")
     @Transactional
     public ResponseEntity<Permission> createPermission( @RequestBody Permission permission) {
         Permission newPermission = permissionService.save(permission);
         return ResponseEntity.ok(newPermission);
     }
 
+    /**
+     * Actualiza un permiso existente.
+     * Requiere el permiso 'UPDATE'. Solo accesible por ADMIN.
+     */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('UPDATE')")
     public ResponseEntity<?> updatePermission(
             @PathVariable Long id,
             @RequestBody Permission permissionDetails) {
@@ -61,9 +78,12 @@ public class PermissionController {
         }
     }
 
-    // @UpdatePermission lo tengo junto con rol  updateRolePermission
-
+    /**
+     * Elimina un permiso por su ID.
+     * Requiere el permiso 'DELETE'. Solo accesible por ADMIN.
+     */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('DELETE')")
     public ResponseEntity<?> deletePermission(@PathVariable Long id) {
         try {
             permissionService.deletePermission(id);

@@ -28,22 +28,34 @@ public class RoleController {
     private final IRoleService roleService;
     private final IPermissionService permissionService;
 
+    /**
+     * Obtiene todos los roles.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping
-    @PreAuthorize("hasRole('PROFESOR') or hasRole('ESTUDIANTE') and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<List<Role>> getAllRoles() {
         List<Role> roles = roleService.findAll();
         return ResponseEntity.ok(roles);
     }
 
+    /**
+     * Obtiene un rol por su ID.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping("/{idRole}")
-    @PreAuthorize("hasRole('PROFESOR') or hasRole('ESTUDIANTE') and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')")
     public ResponseEntity<Role> getRoleById(@PathVariable Long idRole) {
         Optional<Role> role = roleService.findById(idRole);
         return role.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Crea un nuevo rol.
+     * Requiere el permiso 'CREATE'. Solo accesible por ADMIN.
+     */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('CREATE')")
     @Transactional
     public ResponseEntity<Role> createRole(@RequestBody Role role) {
         Set<Permission> permissionList = new HashSet<>();
@@ -63,8 +75,12 @@ public class RoleController {
         return ResponseEntity.ok(newRole);
     }
 
+    /**
+     * Actualiza los permisos de un rol existente.
+     * Requiere el permiso 'UPDATE'. Solo accesible por ADMIN.
+     */
     @PutMapping("/{idRole}/permissions")
-    @PreAuthorize("hasRole('ADMIN')") // Solo usuarios con rol ADMIN pueden acceder
+    @PreAuthorize("hasAuthority('UPDATE')")
     @Transactional
     public ResponseEntity<Role> updateRolePermissions(
             @PathVariable Long idRole,
@@ -78,8 +94,12 @@ public class RoleController {
         }
     }
 
-
+    /**
+     * Elimina un rol por su ID.
+     * Requiere el permiso 'DELETE'. Solo accesible por ADMIN.
+     */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('DELETE')")
     public ResponseEntity<?> deleteRole(@PathVariable Long id) {
         try {
             roleService.deleteRole(id);

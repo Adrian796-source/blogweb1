@@ -29,22 +29,35 @@ public class UserController {
     private final IUserService userService;
     private final IRoleService roleService;
 
+    /**
+     * Obtiene todos los usuarios.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping
-    @PreAuthorize("isAuthenticated() and ((hasRole('PROFESOR') or hasRole('ESTUDIANTE')) and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')") // para que el usuario comun no vea todos los usuarios
     public ResponseEntity<List<UserSec>> getAllUsers() {
         List<UserSec> users = userService.findAll();
         return ResponseEntity.ok(users);
     }
 
+    /**
+     * Obtiene un usuario por su ID.
+     * Requiere el permiso 'READ'. Accesible por ADMIN y USER.
+     */
     @GetMapping("/{idUserSec}")
-    @PreAuthorize("isAuthenticated() and ((hasRole('PROFESOR') or hasRole('ESTUDIANTE')) and hasAuthority('SELECT')")
+    @PreAuthorize("hasAuthority('READ')") // para que el usuario comun no busque por id
     public ResponseEntity<UserSec> getUserById(@PathVariable Long idUserSec) {
         Optional<UserSec> user = userService.findById(idUserSec);
         return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+
+    /**
+     * Crea un nuevo usuario.
+     * Requiere el permiso 'CREATE'. Solo accesible por ADMIN.
+     */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('CREATE')")
     @Transactional
     public ResponseEntity<?> createUser(@RequestBody UserSec userSec) {
         try {
@@ -86,7 +99,12 @@ public class UserController {
         }
     }
 
+    /**
+     * Actualiza un usuario existente.
+     * Requiere el permiso 'UPDATE'. Solo accesible por ADMIN.
+     */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('UPDATE')")
     public ResponseEntity<?> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UserSec userDetails) {
@@ -113,7 +131,13 @@ public class UserController {
                     .body("Error inesperado: " + ex.getMessage());
         }
     }
+
+    /**
+     * Elimina un usuario por su ID.
+     * Requiere el permiso 'DELETE'. Solo accesible por ADMIN.
+     */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('DELETE')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         try {
             userService.deleteUser(id);
