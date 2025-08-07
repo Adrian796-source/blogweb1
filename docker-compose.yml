@@ -1,0 +1,51 @@
+services:
+  blogweb1:
+    container_name: blogweb1_container
+    build:
+      context: .
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    # depends_on solo asegura el orden de inicio, el script se encarga de la espera.
+    depends_on: [ "postgres-db" ]    
+    environment:
+      # Le decimos a Spring Boot que active el perfil 'docker' para que lea application-docker.properties
+      SPRING_PROFILES_ACTIVE: docker
+
+      # La URL apunta al nombre del servicio 'postgres-db'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # Variables para que el script wait-for-it.sh pueda usarlas
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      # El resto de tus variables de aplicación (CORREGIDO JWT_SEC a JWT_SECRET)
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_USER: ${JWT_USER}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      SS_USER: ${SS_USER}
+      SS_PASSWORD: ${SS_PASSWORD}
+    # El entrypoint usa el script para esperar a la BD antes de lanzar la app.
+    # Esta es la línea correcta que ejecuta tu aplicación después de la espera.
+    entrypoint: [ "/usr/local/bin/wait-for-it.sh", "postgres-db", "java", "-jar", "app_blogweb1.jar" ]
+
+  postgres-db:
+    image: postgres:15
+    container_name: blogweb_db_container
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data: {}

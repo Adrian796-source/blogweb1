@@ -42,7 +42,7 @@ public class GitHubAuthService {
                 "https://api.github.com/user",
                 HttpMethod.GET,
                 entity,
-                Map.class);
+                Map.class); 
 
         return response.getBody();
     }
