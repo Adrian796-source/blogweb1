@@ -1,4 +1,4 @@
-package com.adrian.blogweb1.security.config.oauth2;
+package com.adrian.blogweb1.security.config;
 
 
 import com.adrian.blogweb1.model.Role;
@@ -6,6 +6,8 @@ import com.adrian.blogweb1.model.UserSec;
 import com.adrian.blogweb1.repository.IRoleRepository;
 import com.adrian.blogweb1.repository.IUserRepository;
 import com.adrian.blogweb1.security.config.props.DefaultAdminProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -22,6 +24,8 @@ import java.util.UUID;
 
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(CustomOAuth2UserService.class);
 
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
@@ -53,7 +57,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return new CustomOAuth2User(oauthUser, registrationId, userNameAttributeName, authorities);
     }
 
-    private UserSec findOrCreateUser(OAuth2User oauthUser) {
+    UserSec findOrCreateUser(OAuth2User oauthUser) {
         String email = Optional.ofNullable(oauthUser.<String>getAttribute("email"))
                 .orElseThrow(() -> new OAuth2AuthenticationException("No se pudo obtener el email de GitHub. Asegúrate de que sea público en tu perfil."));
 
@@ -62,12 +66,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         return userRepository.findByEmail(email)
                 .map(existingUser -> {
-                    System.out.println(">>> Usuario existente encontrado por email: " + email);
+                    log.info(">>> Usuario existente encontrado por email: {}", email);
                     existingUser.setUsername(username);
                     return checkAndApplyAdminRole(existingUser);
                 })
                 .orElseGet(() -> {
-                    System.out.println(">>> No se encontró usuario por email: " + email + ". Creando nuevo usuario...");
+                    log.info(">>> No se encontró usuario por email: {}. Creando nuevo usuario...", email);
                     return createNewUser(email, username);
                 });
     }
@@ -97,7 +101,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 .anyMatch(role -> role.getRole().equals(roleName));
 
         if (!hasCorrectRole) {
-            System.out.println(">>> Asignando/Actualizando rol para " + user.getEmail() + " a: " + roleName);
+            log.info(">>> Asignando/Actualizando rol para {} a: {}", user.getEmail(), roleName);
             Role assignedRole = roleRepository.findByRole(roleName)
                     .orElseThrow(() -> new IllegalStateException("Error crítico: Rol '" + roleName + "' no encontrado."));
             user.setRolesList(Set.of(assignedRole));

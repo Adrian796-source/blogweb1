@@ -4,6 +4,7 @@ import com.adrian.blogweb1.dto.AuthorCreateRequestDTO;
 import com.adrian.blogweb1.dto.AuthorDTO;
 import com.adrian.blogweb1.dto.AuthorUpdateRequestDTO;
 import com.adrian.blogweb1.service.IAuthorService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -53,5 +54,15 @@ public class AuthorController {
     public ResponseEntity<Void> deleteAuthor(@PathVariable Long id) {
         authorService.deleteAuthor(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Manejador de excepciones para EntityNotFoundException.
+     * Captura la excepción lanzada por el servicio cuando no se encuentra una entidad
+     * y devuelve una respuesta HTTP 404 Not Found.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<String> handleEntityNotFound(EntityNotFoundException ex) {
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
     }
 }

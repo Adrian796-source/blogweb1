@@ -2,6 +2,7 @@ package com.adrian.blogweb1.model;
 
 
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,7 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name="users")
+@JsonIgnoreProperties({"authorities", "accountNonExpired", "accountNonLocked", "credentialsNonExpired", "enabled"})
 public class UserSec {
 
     @Id
@@ -43,20 +45,18 @@ public class UserSec {
     private String email;
 
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL) //el LAZY me va a cargar todos los roles
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> rolesList = new HashSet<>();
 
 
-    public Collection<? extends GrantedAuthority> getAuthorities() {
+    public Collection<GrantedAuthority> getAuthorities() {
+        // REVERTIMOS a .collect(Collectors.toList()) para solucionar el error de compilación.
         return this.rolesList.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getRole())) // Asume que Role tiene getRole()
+                .map(role -> new SimpleGrantedAuthority(role.getRole()))
                 .collect(Collectors.toList());
     }
 
 
 }
-
-
-

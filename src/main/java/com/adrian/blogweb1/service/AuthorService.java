@@ -9,19 +9,14 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-
 import java.util.List;
 import java.util.Optional;
-
 
 @Service
 @RequiredArgsConstructor
 public class AuthorService implements IAuthorService {
 
-
     private final IAuthorRepository authorRepository;
-
-
 
     @Override
     public AuthorDTO createAuthor(AuthorCreateRequestDTO authorRequest) {
@@ -32,18 +27,19 @@ public class AuthorService implements IAuthorService {
 
         return mapToAuthorDTO(savedAuthor);
     }
+
     @Override
     public List<AuthorDTO> getAuthorsDTO() {
         return authorRepository.findAll() // Obtiene la lista de entidades Author
                 .stream()                 // se convierte en un stream
-                .map(author -> new AuthorDTO(author.getIdAuthor(), author.getName())) // Mapeas cada Author a un AuthorDTO
+                .map(this::mapToAuthorDTO) // Reutilizamos el método de ayuda para el mapeo
                 .toList();                // se convierte de nuevo a una lista
     }
 
     @Override
     public Optional<AuthorDTO> getAuthorByIdDTO(Long idAuthor) {
         return authorRepository.findById(idAuthor)
-                .map(author -> new AuthorDTO(author.getIdAuthor(), author.getName()));
+                .map(this::mapToAuthorDTO); // Reutilizamos el método de ayuda aquí también
     }
 
     @Override
@@ -59,10 +55,10 @@ public class AuthorService implements IAuthorService {
 
     @Override
     public void deleteAuthor(Long id) {
-        if (!authorRepository.existsById(id)) {
-            throw new EntityNotFoundException("No se puede eliminar. Autor no encontrado con id: " + id);
-        }
-        authorRepository.deleteById(id);
+        // Buscamos el autor primero para asegurarnos de que existe antes de intentar borrarlo.
+        Author authorToDelete = authorRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("No se puede eliminar. Autor no encontrado con id: " + id));
+        authorRepository.delete(authorToDelete);
     }
 
     // Método de ayuda para no repetir código

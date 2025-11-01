@@ -8,7 +8,8 @@ import com.adrian.blogweb1.repository.IPermissionRepository;
 import com.adrian.blogweb1.repository.IRoleRepository;
 import com.adrian.blogweb1.repository.IUserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,54 +22,44 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RoleService implements IRoleService {
 
+    private static final Logger log = LoggerFactory.getLogger(RoleService.class);
 
     private final IRoleRepository roleRepository;
-
-
     private final IUserRepository userRepository;
-
-
     private final IPermissionRepository permissionRepository;
 
     @Override
     public List<Role> findAll() {
-
         return roleRepository.findAll();
     }
 
     @Override
     public Optional<Role> findById(Long id) {
-
         return roleRepository.findById(id);
     }
 
     @Override
     public Role save(Role role) {
-
         return roleRepository.save(role);
     }
 
     @Override
     @Transactional
     public Role updateRolePermissions(Long idRole, Set<Permission> permissions) {
-        // Buscar el rol por ID
         Role role = roleRepository.findById(idRole)
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado con ID: " + idRole));
 
-        // Limpiar los permisos actuales del rol
         role.getPermissionsList().clear();
 
-        // Agregar los nuevos permisos al rol
         for (Permission permission : permissions) {
             Permission existingPermission = permissionRepository.findById(permission.getIdPermission())
                     .orElseThrow(() -> {
-                        System.out.println("Permiso no encontrado con ID: " + permission.getIdPermission()); // Log para depuración
+                        log.error("Permiso no encontrado con ID: {}", permission.getIdPermission()); // Log para depuración
                         return new RuntimeException("Permiso no encontrado con ID: " + permission.getIdPermission());
                     });
             role.getPermissionsList().add(existingPermission);
         }
 
-        // Guardar el rol actualizado
         return roleRepository.save(role);
     }
 
@@ -78,12 +69,10 @@ public class RoleService implements IRoleService {
         Role role = roleRepository.findById(idRole)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado"));
 
-        // Romper relaciones con usuarios primero
         List<UserSec> usersWithRole = userRepository.findByRolesListContains(role);
         usersWithRole.forEach(user -> user.getRolesList().remove(role));
         userRepository.saveAll(usersWithRole);
 
-        // Eliminar el rol
         roleRepository.delete(role);
     }
 
@@ -95,13 +84,7 @@ public class RoleService implements IRoleService {
     @Override
     @Transactional(readOnly = true)
     public Set<Role> findAllByIds(Set<Long> roleIds) {
-        // JpaRepository ya tiene un método findAllById que es perfecto para esto.
-        // Devuelve una List, así que la convertimos a un Set.
         return new HashSet<>(roleRepository.findAllById(roleIds));
     }
 
 }
-
-
-
-

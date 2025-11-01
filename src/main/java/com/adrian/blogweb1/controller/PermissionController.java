@@ -1,7 +1,6 @@
 package com.adrian.blogweb1.controller;
 
 
-import com.adrian.blogweb1.exception.ResourceNotFoundException;
 import com.adrian.blogweb1.model.Permission;
 import com.adrian.blogweb1.service.IPermissionService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +20,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PermissionController {
 
+    // --- CORRECCIÓN: Constantes para claves y valores de respuesta JSON ---
+    private static final String STATUS_KEY = "status";
+    private static final String MESSAGE_KEY = "message";
+    private static final String STATUS_ERROR = "error";
+    private static final String STATUS_SUCCESS = "success";
 
     private final IPermissionService permissionService;
 
@@ -56,7 +60,7 @@ public class PermissionController {
     @Transactional
     public ResponseEntity<Permission> createPermission( @RequestBody Permission permission) {
         Permission newPermission = permissionService.save(permission);
-        return ResponseEntity.ok(newPermission);
+        return new ResponseEntity<>(newPermission, HttpStatus.CREATED);
     }
 
     /**
@@ -65,17 +69,11 @@ public class PermissionController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('UPDATE')")
-    public ResponseEntity<?> updatePermission(
+    public ResponseEntity<Object> updatePermission(
             @PathVariable Long id,
             @RequestBody Permission permissionDetails) {
-        try {
-            Permission updatedPermission = permissionService.updatePermission(id, permissionDetails);
-            return ResponseEntity.ok(updatedPermission);
-        } catch (ResourceNotFoundException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred: " + ex.getMessage());
-        }
+        Permission updatedPermission = permissionService.updatePermission(id, permissionDetails);
+        return ResponseEntity.ok(updatedPermission);
     }
 
     /**
@@ -84,29 +82,12 @@ public class PermissionController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('DELETE')")
-    public ResponseEntity<?> deletePermission(@PathVariable Long id) {
-        try {
-            permissionService.deletePermission(id);
-            return ResponseEntity.ok()
-                    .body(Map.of(
-                            "status", "success",
-                            "message", "Permiso eliminado correctamente"
-                    ));
-        } catch (ResourceNotFoundException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "status", "error",
-                            "message", ex.getMessage()
-                    ));
-        } catch (Exception ex) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of(
-                            "status", "error",
-                            "message", "Error al eliminar el permiso: " + ex.getMessage()
-                    ));
-        }
+    public ResponseEntity<Map<String, String>> deletePermission(@PathVariable Long id) {
+        permissionService.deletePermission(id);
+        return ResponseEntity.ok(Map.of(
+                STATUS_KEY, STATUS_SUCCESS,
+                MESSAGE_KEY, "Permiso eliminado correctamente"
+        ));
     }
 
 }
-
-

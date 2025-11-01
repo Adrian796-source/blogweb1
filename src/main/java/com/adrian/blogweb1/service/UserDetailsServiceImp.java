@@ -36,8 +36,9 @@ public class UserDetailsServiceImp implements UserDetailsService {
                 .flatMap(role -> role.getPermissionsList().stream())
                 .map(permission -> new SimpleGrantedAuthority(permission.getPermissionName()));
 
+        // CORRECCIÓN: Usamos el método moderno .toList() de Java 16+.
         List<SimpleGrantedAuthority> authorities = Stream.concat(roleAuthorities, permissionAuthorities)
-                .collect(Collectors.toList());
+                .toList();
 
         return new User(
                 user.getUsername(),

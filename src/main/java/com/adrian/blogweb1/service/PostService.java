@@ -27,18 +27,14 @@ public class PostService implements IPostService {
 
     @Override
     public Post savePost(PostCreateRequestDTO postRequest) {
-        // 1. Busca al autor por el ID proporcionado en el DTO.
-        //    Si no lo encuentra, lanza una excepción.
         Author author = authorRepository.findById(postRequest.getAuthorId())
                 .orElseThrow(() -> new RuntimeException("Autor no encontrado con id: " + postRequest.getAuthorId()));
 
-        // 2. Crea una nueva entidad Post.
         Post newPost = new Post();
         newPost.setTitle(postRequest.getTitle());
         newPost.setContent(postRequest.getContent());
-        newPost.setAuthor(author); // 3. Asocia el autor encontrado.
+        newPost.setAuthor(author);
 
-        // 4. Guarda el post. El método @PrePersist se encargará de poner la fecha.
         return postRepository.save(newPost);
     }
 
@@ -47,43 +43,36 @@ public class PostService implements IPostService {
     public List<PostResponseDTO> getPosts() {
         return postRepository.findAll()
                 .stream()
-                .map(this::mapToPostResponseDTO) // Mapeamos cada Post a un DTO
+                .map(this::mapToPostResponseDTO)
                 .toList();
     }
 
     @Override
     public Optional<PostResponseDTO> getPostById(Long idPost) {
         return postRepository.findById(idPost)
-                .map(this::mapToPostResponseDTO); // Mapeamos el Post si exist postRepository.findById(idPost).map(this::mapToPostResponseDTO);
-
+                .map(this::mapToPostResponseDTO);
     }
 
-    // --- MÉTODO PRIVADO DE AYUDA ---
-    // Este método centraliza la lógica de conversión de Entidad a DTO
     private PostResponseDTO mapToPostResponseDTO(Post post) {
         return new PostResponseDTO(
                 post.getIdPost(),
                 post.getTitle(),
                 post.getContent(),
                 post.getCreatedAt(),
-                post.getAuthor().getName() // Asumiendo que Author tiene un método getName()
+                post.getAuthor().getName()
         );
     }
 
     @Override
     public PostResponseDTO updatePost(Long id, PostUpdateRequestDTO postDetails) {
-        // 1. Busca el post existente o lanza una excepción si no lo encuentra
         Post postToUpdate = postRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Post no encontrado con id: " + id));
 
-        // 2. Actualiza los campos con la información del DTO
         postToUpdate.setTitle(postDetails.getTitle());
         postToUpdate.setContent(postDetails.getContent());
 
-        // 3. Guarda los cambios
         Post updatedPost = postRepository.save(postToUpdate);
 
-        // 4. Mapea la entidad actualizada a un DTO de respuesta
         return new PostResponseDTO(
                 updatedPost.getIdPost(),
                 updatedPost.getTitle(),
@@ -93,10 +82,14 @@ public class PostService implements IPostService {
         );
     }
 
-
     @Override
-    public void deletePost(Long idPost) {
-        postRepository.deleteById(idPost);
+    public void deletePost(Long id) {
+        // MEJORA: Verificamos que el post existe antes de intentar borrarlo.
+        if (!postRepository.existsById(id)) {
+            throw new EntityNotFoundException("No se puede eliminar. Post no encontrado con ID: " + id);
+        }
+        postRepository.deleteById(id);
     }
-
 }
+
+

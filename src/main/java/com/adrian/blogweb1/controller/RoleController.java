@@ -7,23 +7,26 @@ import com.adrian.blogweb1.model.Role;
 import com.adrian.blogweb1.service.IPermissionService;
 import com.adrian.blogweb1.service.IRoleService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/roles")
 @RequiredArgsConstructor
 public class RoleController {
 
+    private static final String STATUS_KEY = "status";
+    private static final String MESSAGE_KEY = "message";
+    private static final String STATUS_ERROR = "error";
+    private static final String STATUS_SUCCESS = "success";
 
     private final IRoleService roleService;
     private final IPermissionService permissionService;
@@ -58,21 +61,21 @@ public class RoleController {
     @PreAuthorize("hasAuthority('CREATE')")
     @Transactional
     public ResponseEntity<Role> createRole(@RequestBody Role role) {
-        Set<Permission> permissionList = new HashSet<>();
-        Permission readPermission;
-
-        // Recuperar la Permission/s por su ID
-        for (Permission per : role.getPermissionsList()) {
-            readPermission = permissionService.findById(per.getIdPermission()).orElse(null);
-            if (readPermission != null) {
-                //si encuentro, guardo en la lista
-                permissionList.add(readPermission);
-            }
+        // Lógica mejorada para recuperar los permisos y evitar detached entities
+        if (role.getPermissionsList() != null && !role.getPermissionsList().isEmpty()) {
+            Set<Permission> managedPermissions = role.getPermissionsList().stream()
+                    .map(Permission::getIdPermission) // Extraemos los IDs de los permisos de la petición
+                    .map(permissionService::findById) // Buscamos cada permiso en la BD
+                    .filter(Optional::isPresent)      // Filtramos los que no se encontraron
+                    .map(Optional::get)               // Obtenemos el objeto Permission del Optional
+                    .collect(Collectors.toSet());     // Los recolectamos en un nuevo Set
+            role.setPermissionsList(managedPermissions);
         }
 
-        role.setPermissionsList(permissionList);
         Role newRole = roleService.save(role);
-        return ResponseEntity.ok(newRole);
+
+        // Devolvemos 201 Created, que es el estándar para la creación de recursos.
+        return new ResponseEntity<>(newRole, HttpStatus.CREATED);
     }
 
     /**
@@ -82,15 +85,18 @@ public class RoleController {
     @PutMapping("/{idRole}/permissions")
     @PreAuthorize("hasAuthority('UPDATE')")
     @Transactional
-    public ResponseEntity<Role> updateRolePermissions(
+    public ResponseEntity<Object> updateRolePermissions(
             @PathVariable Long idRole,
             @RequestBody Set<Permission> permissions) {
         try {
             Role updatedRole = roleService.updateRolePermissions(idRole, permissions);
             return ResponseEntity.ok(updatedRole);
-        } catch (RuntimeException e) {
-            System.out.println("Error: " + e.getMessage()); // Log para depuración
-            return ResponseEntity.notFound().build();
+        } catch (ResourceNotFoundException e) {
+            log.warn("Intento de actualizar un rol no encontrado. ID: {}", idRole, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    STATUS_KEY, STATUS_ERROR,
+                    MESSAGE_KEY, e.getMessage()
+            ));
         }
     }
 
@@ -100,19 +106,28 @@ public class RoleController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('DELETE')")
-    public ResponseEntity<?> deleteRole(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteRole(@PathVariable Long id) {
         try {
             roleService.deleteRole(id);
-            return ResponseEntity.ok().body("Rol eliminado correctamente");
+            return ResponseEntity.ok(Map.of(
+                    STATUS_KEY, STATUS_SUCCESS,
+                    MESSAGE_KEY, "Rol eliminado correctamente"
+            ));
         } catch (ResourceNotFoundException ex) {
+            log.warn("Intento de eliminar un rol no encontrado. ID: {}", id, ex);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ex.getMessage());
+                    .body(Map.of(
+                            STATUS_KEY, STATUS_ERROR,
+                            MESSAGE_KEY, ex.getMessage()
+                    ));
         } catch (Exception ex) {
+            log.error("Error inesperado al eliminar el rol ID: {}", id, ex);
             return ResponseEntity.internalServerError()
-                    .body("Error al eliminar el rol: " + ex.getMessage());
+                    .body(Map.of(
+                            STATUS_KEY, STATUS_ERROR,
+                            MESSAGE_KEY, "Error al eliminar el rol: " + ex.getMessage()
+                    ));
         }
     }
 
 }
-
-

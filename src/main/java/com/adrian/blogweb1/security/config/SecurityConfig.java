@@ -2,26 +2,28 @@ package com.adrian.blogweb1.security.config;
 
 import com.adrian.blogweb1.security.config.props.DefaultAdminProperties;
 import com.adrian.blogweb1.service.DatabaseInitializationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import com.adrian.blogweb1.security.config.filter.JwtTokenValidator;
-import com.adrian.blogweb1.security.config.oauth2.CustomOAuth2UserService;
-import com.adrian.blogweb1.security.config.oauth2.OAuth2LoginSuccessHandler;
 import com.adrian.blogweb1.service.UserDetailsServiceImp;
-import com.adrian.blogweb1.service.UserService;
 import com.adrian.blogweb1.utils.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -40,33 +42,22 @@ public class SecurityConfig {
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsServiceImp userDetailsService;
 
-    /**
-     * PRIMERA CADENA DE FILTROS: Autenticación (OAuth2)
-     * - Anotada con @Order(1) para que se evalúe primero.
-     * - Se aplica SÓLO a las rutas de autenticación gracias a securityMatcher.
-     * - Su propósito es autenticar al usuario (vía OAuth2) y generar un JWT.
-     * - NO tiene el filtro de validación de JWT (JwtTokenValidator).
-     */
-
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .csrf(csrf -> csrf.disable())
-                // La política de sesión principal es STATELESS para nuestra API. Es la regla general.
+                // --- INICIO DE LA CORRECCIÓN ---
+                // Habilitamos CSRF y lo configuramos para que funcione con APIs stateless.
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()) //NOSONAR
+                )
+                // --- FIN DE LA CORRECCIÓN ---
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
-                    // 1. Definimos TODAS las rutas públicas que no necesitan ninguna autenticación.
                     auth.requestMatchers("/auth/login", "/error").permitAll();
                     auth.requestMatchers("/auth/login-oauth", "/oauth2/**", "/login/oauth2/code/**").permitAll();
-
-                    // 2. Para TODAS las demás peticiones, exigimos que estén autenticadas.
                     auth.anyRequest().authenticated();
                 })
-                // 3. Añadimos nuestro filtro para validar el token JWT en cada petición protegida.
                 .addFilterBefore(new JwtTokenValidator(jwtUtils), UsernamePasswordAuthenticationFilter.class)
-
-                // 4. Configuramos el flujo de login de OAuth2. Spring lo gestionará de forma segura.
                 .oauth2Login(oauth2 -> {
                     oauth2.authorizationEndpoint(authorization -> authorization
                             .baseUri("/oauth2/authorization")
@@ -79,30 +70,31 @@ public class SecurityConfig {
                     );
                     oauth2.successHandler(oAuth2LoginSuccessHandler);
                 })
+                // ¡AQUÍ ESTÁ LA MEJORA!
+                // Le decimos a Spring Security cómo manejar los errores de autenticación para una API REST.
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                )
                 .build();
     }
 
-    /**
-     * Expone el AuthenticationManager de Spring Security como un Bean.
-     * Spring lo configurará automáticamente con el UserDetailsService y PasswordEncoder correctos.
-     * @param authenticationConfiguration La configuración de autenticación de Spring.
-     * @return El AuthenticationManager configurado.
-     * @throws Exception Si hay un error al obtener el manager.
-     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Configuration
+    @Profile("!test") // Le dice a Spring: "No cargues esta configuración si el perfil 'test' está activo"
     public static class DefaultUserConfig {
+
+        private static final Logger logger = LoggerFactory.getLogger(DefaultUserConfig.class);
 
         @Bean
         public CommandLineRunner initializeDatabase(DatabaseInitializationService initializationService) {
             return args -> {
-                System.out.println(">>> Iniciando la carga de datos por defecto...");
+                logger.info(">>> Iniciando la carga de datos por defecto...");
                 initializationService.initializeDatabase();
-                System.out.println(">>> Carga de datos por defecto completada.");
+                logger.info(">>> Carga de datos por defecto completada.");
             };
         }
 

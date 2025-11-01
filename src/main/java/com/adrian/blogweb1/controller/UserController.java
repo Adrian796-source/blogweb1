@@ -8,7 +8,7 @@ import com.adrian.blogweb1.service.IRoleService;
 import com.adrian.blogweb1.service.IUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,14 +17,20 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
+    private static final String STATUS_KEY = "status";
+    private static final String MESSAGE_KEY = "message";
+    private static final String STATUS_ERROR = "error";
+    private static final String STATUS_SUCCESS = "success";
 
     private final IUserService userService;
     private final IRoleService roleService;
@@ -57,43 +63,36 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasAuthority('CREATE')")
     @Transactional
-    public ResponseEntity<?> createUser(@RequestBody UserSec userSec) {
+    public ResponseEntity<Object> createUser(@RequestBody UserSec userSec) {
         try {
-            // Verifica si el campo password está presente y no está vacío
             if (userSec.getPassword() == null || userSec.getPassword().isEmpty()) {
-                return ResponseEntity.badRequest().body("El campo 'password' no puede estar vacío");
+                return ResponseEntity.badRequest().body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, "El campo 'password' no puede estar vacío"));
             }
-            // Verifica si el campo rolesList está presente y no está vacío
             if (userSec.getRolesList() == null || userSec.getRolesList().isEmpty()) {
-                return ResponseEntity.badRequest().body("El campo 'rolesList' no puede estar vacío");
+                return ResponseEntity.badRequest().body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, "El campo 'rolesList' no puede estar vacío"));
             }
 
             Set<Role> roleList = new HashSet<>();
-            Role readRole;
-
-            // Encriptamos contraseña
             userSec.setPassword(userService.encryptPassword(userSec.getPassword()));
 
-            // Recuperar los roles por su ID
             for (Role role : userSec.getRolesList()) {
-                readRole = roleService.findById(role.getIdRole())
-                        .orElseThrow(() -> new RuntimeException("Rol no encontrado con ID: " + role.getIdRole()));
+                Role readRole = roleService.findById(role.getIdRole())
+                        .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con ID: " + role.getIdRole()));
                 roleList.add(readRole);
             }
 
-            // Asigna los roles al usuario y lo guarda en la base de datos
             userSec.setRolesList(roleList);
             UserSec newUser = userService.save(userSec);
 
-            // Mensaje en consola: "Usuario creado"
-            System.out.println("Usuario creado");
+            log.info("Usuario creado con ID: {}", newUser.getIdUserSec());
 
-            // Devuelve una respuesta 201 Created con el nuevo usuario
             return ResponseEntity.status(HttpStatus.CREATED).body(newUser);
+        } catch (ResourceNotFoundException e) {
+            log.warn("Error de cliente al crear usuario: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, e.getMessage()));
         } catch (Exception e) {
-            // Logear la excepción
-            System.err.println("Error al crear el usuario: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al crear el usuario");
+            log.error("Error interno al crear el usuario", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, "Error interno al crear el usuario"));
         }
     }
 
@@ -103,30 +102,19 @@ public class UserController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('UPDATE')")
-    public ResponseEntity<?> updateUser(
+    public ResponseEntity<Object> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UserSec userDetails) {
 
         try {
-            // Llamar al servicio para actualizar el usuario
             UserSec updatedUser = userService.updateUser(id, userDetails);
-
-            // Devolver respuesta exitosa con el usuario actualizado
             return ResponseEntity.ok(updatedUser);
-
-        } catch (RuntimeException ex) {
-            // Manejar errores específicos
-            if (ex.getMessage().contains("Usuario no encontrado")) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Error: " + ex.getMessage());
-            } else if (ex.getMessage().contains("Rol no encontrado")) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Error: " + ex.getMessage());
-            }
-
-            // Manejar otros errores genéricos
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error inesperado: " + ex.getMessage());
+        } catch (ResourceNotFoundException ex) {
+            log.warn("Intento de actualizar un usuario no encontrado. ID: {}", id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Error inesperado al actualizar el usuario ID: {}", id, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, "Error inesperado al actualizar el usuario"));
         }
     }
 
@@ -136,17 +124,18 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('DELETE')")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteUser(@PathVariable Long id) {
         try {
             userService.deleteUser(id);
-            return ResponseEntity.ok().build();
+            log.info("Usuario con ID: {} eliminado correctamente", id);
+            return ResponseEntity.ok(Map.of(STATUS_KEY, STATUS_SUCCESS, MESSAGE_KEY, "Usuario eliminado correctamente"));
         } catch (ResourceNotFoundException ex) {
-            return ResponseEntity.notFound().build();
+            log.warn("Intento de eliminar un usuario no encontrado. ID: {}", id, ex);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, ex.getMessage()));
         } catch (Exception ex) {
-            return ResponseEntity.internalServerError().body("Error al eliminar el usuario");
+            log.error("Error inesperado al eliminar el usuario ID: {}", id, ex);
+            return ResponseEntity.internalServerError().body(Map.of(STATUS_KEY, STATUS_ERROR, MESSAGE_KEY, "Error al eliminar el usuario"));
         }
     }
 
 }
-
-

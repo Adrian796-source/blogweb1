@@ -5,12 +5,14 @@ import com.adrian.blogweb1.dto.PostResponseDTO;
 import com.adrian.blogweb1.dto.PostUpdateRequestDTO;
 import com.adrian.blogweb1.model.Post;
 import com.adrian.blogweb1.service.IPostService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 
 import java.util.List;
 
@@ -68,5 +70,21 @@ public class PostController {
         postService.deletePost(id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Manejador de excepciones para EntityNotFoundException.
+     * Este método se activa automáticamente cuando cualquier método en este controlador
+     * causa una EntityNotFoundException (lanzada por el servicio).
+     * @param ex La excepción capturada.
+     * @return Una respuesta HTTP 404 Not Found con el mensaje de la excepción.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<String> handleEntityNotFound(EntityNotFoundException ex) {
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+
+
+
 }
 

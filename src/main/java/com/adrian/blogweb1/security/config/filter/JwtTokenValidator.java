@@ -22,14 +22,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JwtTokenValidator extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
-    // Añadimos un logger para registrar errores de validación
-    private static final Logger logger = LoggerFactory.getLogger(JwtTokenValidator.class);
+    // CORRECCIÓN 1: Renombramos el logger para evitar el "shadowing" con la clase padre.
+    private static final Logger log = LoggerFactory.getLogger(JwtTokenValidator.class);
 
     public JwtTokenValidator(JwtUtils jwtUtils) {
         this.jwtUtils = jwtUtils;
@@ -43,8 +42,6 @@ public class JwtTokenValidator extends OncePerRequestFilter {
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            // Si no hay token, simplemente continuamos con la cadena de filtros.
-            // Spring Security se encargará de denegar el acceso si el endpoint es protegido.
             filterChain.doFilter(request, response);
             return;
         }
@@ -55,7 +52,6 @@ public class JwtTokenValidator extends OncePerRequestFilter {
 
             String username = jwtUtils.extractUsername(decodedJWT);
 
-            // Sugerencia: Usar Streams para construir las autoridades de forma más elegante
             List<String> roles = decodedJWT.getClaim("roles").asList(String.class);
             List<String> permissions = decodedJWT.getClaim("permissions").asList(String.class);
 
@@ -65,26 +61,25 @@ public class JwtTokenValidator extends OncePerRequestFilter {
             Stream<GrantedAuthority> permissionAuthorities = (permissions != null) ?
                     permissions.stream().map(SimpleGrantedAuthority::new) : Stream.empty();
 
+            // CORRECCIÓN 2: Usamos el método moderno .toList() de Java 16+.
             List<GrantedAuthority> authorities = Stream.concat(roleAuthorities, permissionAuthorities)
-                    .collect(Collectors.toList());
+                    .toList();
 
-            // Crear el objeto de autenticación
             Authentication authentication = new UsernamePasswordAuthenticationToken(
                     username,
-                    null, // Las credenciales no son necesarias después de la autenticación por token
+                    null, 
                     authorities
             );
 
-            // Establecer la autenticación en el contexto de seguridad de Spring
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
         } catch (JWTVerificationException e) {
-            // Sugerencia: Capturar la excepción específica y dar una respuesta JSON
-            logger.error("Error de validación de token: {}", e.getMessage());
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401 es más apropiado
+            // Usamos el logger con el nuevo nombre 'log'.
+            log.error("Error de validación de token: {}", e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"error\": \"Token inválido o expirado\", \"status\": 401}");
-            return; // Detenemos la cadena de filtros aquí
+            return;
         }
 
         filterChain.doFilter(request, response);
