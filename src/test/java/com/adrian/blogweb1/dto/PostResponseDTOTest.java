@@ -1,5 +1,4 @@
-package com.adrian.blogweb1.dtoTest;
-
+package com.adrian.blogweb1.dto;
 
 import com.adrian.blogweb1.dto.PostResponseDTO;
 import org.junit.jupiter.api.DisplayName;
@@ -9,7 +8,7 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class postResponseDTOTest {
+class PostResponseDTOTest {
 
     @Test
     @DisplayName("Debería crear un DTO y verificar getters y setters")

@@ -11,12 +11,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
 import java.util.Collection;
-import java.util.stream.Collectors;
-
-
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @Entity
@@ -25,8 +26,8 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name="users")
-@JsonIgnoreProperties({"authorities", "accountNonExpired", "accountNonLocked", "credentialsNonExpired", "enabled"})
-public class UserSec {
+@JsonIgnoreProperties({"authorities", "accountNonExpired", "accountNonLocked", "credentialsNonExpired"})
+public class UserSec implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,13 +51,25 @@ public class UserSec {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> rolesList = new HashSet<>();
 
-
+    /**
+     * Devuelve las autoridades concedidas al usuario.
+     * Combina los roles (con prefijo "ROLE_") y los permisos únicos de esos roles.
+     * Este método es requerido por la interfaz UserDetails.
+     */
+    @Override
     public Collection<GrantedAuthority> getAuthorities() {
-        // REVERTIMOS a .collect(Collectors.toList()) para solucionar el error de compilación.
-        return this.rolesList.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getRole()))
+        // 1. Mapea cada rol a una autoridad (ej. "ROLE_ADMIN")
+        Stream<GrantedAuthority> roleAuthorities = this.rolesList.stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRole()));
+
+        // 2. Mapea cada permiso de cada rol a una autoridad (ej. "CREATE", "READ")
+        Stream<GrantedAuthority> permissionAuthorities = this.rolesList.stream()
+                .flatMap(role -> role.getPermissionsList().stream())
+                .map(permission -> new SimpleGrantedAuthority(permission.getPermissionName()));
+
+        // 3. Concatena ambos streams y los recolecta en una lista
+        return Stream.concat(roleAuthorities, permissionAuthorities)
                 .collect(Collectors.toList());
     }
-
 
 }

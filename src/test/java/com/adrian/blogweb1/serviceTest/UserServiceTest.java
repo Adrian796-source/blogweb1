@@ -471,6 +471,47 @@ class UserServiceTest {
         verify(userRepository, times(1)).save(any(UserSec.class));
     }
 
+    @Test
+    @DisplayName("findOrCreateUserForOAuth debería lanzar una excepción si el rol por defecto no existe")
+    void findOrCreateUserForOAuth_WhenDefaultRoleIsMissing_ShouldThrowException() {
+        // --- 1. Arrange ---
+        String email = "nuevo_oauth@example.com";
+        String username = "nuevo_oauth";
 
+        // Guion 1: Cuando se busque por email, no se encontrará nada.
+        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+
+        // Guion 2: CRUCIAL - Cuando se busque el rol por defecto, no se encontrará.
+        when(roleService.findByRoleName("ROLE_USER")).thenReturn(Optional.empty());
+
+        // --- 2. Act & 3. Assert ---
+        // Verificamos que se lanza la excepción correcta.
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            userService.findOrCreateUserForOAuth(email, username);
+        });
+
+        assertThat(exception.getMessage()).contains("El rol por defecto 'ROLE_USER' no fue encontrado");
+    }
+
+    @Test
+    @DisplayName("createDefaultUser debería lanzar una excepción si el rol ADMIN no existe")
+    void createDefaultUser_WhenAdminRoleIsMissing_ShouldThrowException() {
+        // --- 1. Arrange ---
+        String adminEmail = "admin@test.com";
+        when(adminProperties.getEmail()).thenReturn(adminEmail);
+        when(userRepository.findByEmail(adminEmail)).thenReturn(Optional.empty());
+
+        // Guion CRUCIAL: Cuando se busque el rol ADMIN, no se encontrará.
+        when(roleRepository.findByRole("ROLE_ADMIN")).thenReturn(Optional.empty());
+
+        // --- 2. Act & 3. Assert ---
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            userService.createDefaultUser();
+        });
+
+        assertThat(exception.getMessage()).contains("Error de configuración CRÍTICO");
+    }
 
 }
+
+

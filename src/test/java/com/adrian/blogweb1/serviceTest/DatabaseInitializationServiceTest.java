@@ -39,14 +39,17 @@ class DatabaseInitializationServiceTest {
     @DisplayName("Debería crear permisos y roles si no existen")
     void initializeDatabase_whenDataDoesNotExist_shouldCreateData() {
         // --- 1. Arrange ---
-        // --- INICIO DE LA SOLUCIÓN ---
-        // Simulamos que los repositorios no encuentran nada al principio.
-        // Usamos thenAnswer para que, después de la primera llamada (que devuelve empty),
-        // las siguientes llamadas (dentro de createRoleIfNotFound) sí encuentren el permiso.
-        when(permissionRepository.findByPermissionName("READ")).thenReturn(Optional.empty()).thenAnswer(inv -> Optional.of(new Permission("READ")));
-        when(permissionRepository.findByPermissionName("CREATE")).thenReturn(Optional.empty()).thenAnswer(inv -> Optional.of(new Permission("CREATE")));
-        when(permissionRepository.findByPermissionName("UPDATE")).thenReturn(Optional.empty()).thenAnswer(inv -> Optional.of(new Permission("UPDATE")));
-        when(permissionRepository.findByPermissionName("DELETE")).thenReturn(Optional.empty()).thenAnswer(inv -> Optional.of(new Permission("DELETE")));
+        // --- INICIO DE LA SOLUCIÓN RECOMENDADA ---
+        // 1. Simulamos que los repositorios no encuentran nada al principio.
+        when(permissionRepository.findByPermissionName(anyString())).thenReturn(Optional.empty());
+        when(roleRepository.findByRole(anyString())).thenReturn(Optional.empty());
+
+        // 2. Para la creación de roles, necesitamos que los permisos "recién creados" se encuentren.
+        // Sobrescribimos el comportamiento de anyString() para los nombres específicos que se buscarán.
+        when(permissionRepository.findByPermissionName("READ")).thenReturn(Optional.empty()).thenReturn(Optional.of(new Permission("READ")));
+        when(permissionRepository.findByPermissionName("CREATE")).thenReturn(Optional.empty()).thenReturn(Optional.of(new Permission("CREATE")));
+        when(permissionRepository.findByPermissionName("UPDATE")).thenReturn(Optional.empty()).thenReturn(Optional.of(new Permission("UPDATE")));
+        when(permissionRepository.findByPermissionName("DELETE")).thenReturn(Optional.empty()).thenReturn(Optional.of(new Permission("DELETE")));
 
         when(roleRepository.findByRole(anyString())).thenReturn(Optional.empty());
         // --- FIN DE LA SOLUCIÓN ---

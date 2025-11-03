@@ -6,6 +6,7 @@ import com.adrian.blogweb1.model.Role;
 import com.adrian.blogweb1.model.UserSec;
 import com.adrian.blogweb1.service.IRoleService;
 import com.adrian.blogweb1.service.IUserService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.List;
 
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +38,22 @@ class UserControllerTest {
     // Creamos una instancia real del controlador
     @InjectMocks
     private UserController userController;
+
+    // --- INICIO DE LA SOLUCIÓN: NUEVOS TESTS PARA COBERTURA ---
+
+    @Test
+    @DisplayName("Debería devolver 200 OK y una lista de todos los usuarios")
+    void getAllUsers_ShouldReturnListOfUsers() {
+        // --- 1. Arrange ---
+        when(userService.findAll()).thenReturn(List.of(new UserSec(), new UserSec()));
+
+        // --- 2. Act ---
+        ResponseEntity<List<UserSec>> respuesta = userController.getAllUsers();
+
+        // --- 3. Assert ---
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).hasSize(2);
+    }
 
     @Test
     @DisplayName("Debería devolver 200 OK y un usuario cuando el ID existe")
@@ -272,4 +290,85 @@ class UserControllerTest {
         assertThat(responseBody.get("status")).isEqualTo("error");
     }
 
+    // --- INICIO DE LA SOLUCIÓN: NUEVOS TESTS PARA COBERTURA ---
+
+    @Test
+    @DisplayName("Debería devolver 400 Bad Request al crear un usuario si el rol no existe")
+    void createUser_WhenRoleNotFound_ShouldReturnBadRequest() {
+        // --- 1. Arrange ---
+        Role rolInexistente = new Role();
+        rolInexistente.setIdRole(99L);
+
+        UserSec usuarioAEnviar = new UserSec();
+        usuarioAEnviar.setPassword("password123");
+        usuarioAEnviar.setRolesList(Set.of(rolInexistente));
+
+        // Guion: Cuando se busque el rol con ID 99, no se encontrará.
+        when(roleService.findById(99L)).thenReturn(Optional.empty());
+        when(userService.encryptPassword(anyString())).thenReturn("encrypted");
+
+        // --- 2. Act ---
+        ResponseEntity<Object> respuesta = userController.createUser(usuarioAEnviar);
+
+        // --- 3. Assert ---
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        Map<String, String> responseBody = (Map<String, String>) respuesta.getBody();
+        assertThat(responseBody.get("message")).isEqualTo("Rol no encontrado con ID: 99");
+    }
+
+    @Test
+    @DisplayName("Debería devolver 500 Internal Server Error al crear un usuario si ocurre un error inesperado")
+    void createUser_WhenUnexpectedError_ShouldReturnInternalServerError() {
+        // --- 1. Arrange ---
+        Role rolDePrueba = new Role();
+        rolDePrueba.setIdRole(1L);
+
+        UserSec usuarioAEnviar = new UserSec();
+        usuarioAEnviar.setPassword("password123");
+        usuarioAEnviar.setRolesList(Set.of(rolDePrueba));
+
+        // Guion: Simulamos un error genérico en la capa de servicio.
+        when(roleService.findById(1L)).thenThrow(new RuntimeException("Error de base de datos simulado"));
+
+        // --- 2. Act ---
+        ResponseEntity<Object> respuesta = userController.createUser(usuarioAEnviar);
+
+        // --- 3. Assert ---
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        Map<String, String> responseBody = (Map<String, String>) respuesta.getBody();
+        assertThat(responseBody.get("message")).isEqualTo("Error interno al crear el usuario");
+    }
+
+    @Test
+    @DisplayName("Debería devolver 500 Internal Server Error al actualizar un usuario si ocurre un error inesperado")
+    void updateUser_WhenUnexpectedError_ShouldReturnInternalServerError() {
+        // --- 1. Arrange ---
+        long userId = 1L;
+        when(userService.updateUser(eq(userId), any(UserSec.class))).thenThrow(new RuntimeException("Error inesperado"));
+
+        // --- 2. Act ---
+        ResponseEntity<Object> respuesta = userController.updateUser(userId, new UserSec());
+
+        // --- 3. Assert ---
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        Map<String, String> responseBody = (Map<String, String>) respuesta.getBody();
+        assertThat(responseBody.get("message")).isEqualTo("Error inesperado al actualizar el usuario");
+    }
+
+    @Test
+    @DisplayName("Debería devolver 500 Internal Server Error al eliminar un usuario si ocurre un error inesperado")
+    void deleteUser_WhenUnexpectedError_ShouldReturnInternalServerError() {
+        // --- 1. Arrange ---
+        long userId = 1L;
+        // Simulamos un error genérico (diferente de ResourceNotFoundException)
+        doThrow(new RuntimeException("Error de base de datos simulado")).when(userService).deleteUser(userId);
+
+        // --- 2. Act ---
+        ResponseEntity<Map<String, String>> respuesta = userController.deleteUser(userId);
+
+        // --- 3. Assert ---
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        Map<String, String> responseBody = (Map<String, String>) respuesta.getBody();
+        assertThat(responseBody.get("message")).isEqualTo("Error al eliminar el usuario");
+    }
 }

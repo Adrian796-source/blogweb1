@@ -3,8 +3,10 @@ package com.adrian.blogweb1.controllerTest;
 import com.adrian.blogweb1.controller.PostController;
 import com.adrian.blogweb1.dto.PostCreateRequestDTO;
 import com.adrian.blogweb1.dto.PostUpdateRequestDTO;
+import com.adrian.blogweb1.model.Author;
 import com.adrian.blogweb1.model.Post;
 import com.adrian.blogweb1.dto.PostResponseDTO;
+import com.adrian.blogweb1.repository.IAuthorRepository;
 import com.adrian.blogweb1.service.IPostService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,10 +23,14 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
 
+// --- INICIO DE LA SOLUCIÓN ---
+import static org.hamcrest.Matchers.is; // Usamos el 'is' de Hamcrest, no de ByteBuddy
+// --- FIN DE LA SOLUCIÓN ---
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +51,10 @@ class PostControllerTest {
     // Mockeamos la dependencia del controlador.
     @MockBean
     private IPostService postService;
+
+    @MockBean
+    private IAuthorRepository authorRepository;
+
 
     @Test
     @DisplayName("GET /api/posts - Debería devolver una lista de posts")
@@ -71,25 +82,33 @@ class PostControllerTest {
         // 1. La petición que enviaría el cliente (usando PostCreateRequestDTO)
         PostCreateRequestDTO request = new PostCreateRequestDTO();
         request.setTitle("Título del Nuevo Post");
-        request.setContent("Contenido del post...");
-        request.setAuthorId(1L); // <-- ¡AQUÍ ESTÁ LA SOLUCIÓN! Añadimos el ID del autor.
+        request.setContent("Contenido del post..."); // Asumimos que el DTO tiene estos campos
 
-        // 2. La ENTIDAD que el servicio debería devolver después de guardar en la base de datos.
+        request.setAuthorId(1L); // <-- ¡AQUÍ ESTÁ LA CLAVE! Añadimos el ID del autor.
+
+        // Preparamos la entidad Author que el servicio necesitará
+        Author author = new Author();
+        author.setIdAuthor(1L);
+        author.setName("Autor de Prueba");
+
+        // Preparamos la entidad Post que el servicio devolverá
         Post savedPost = new Post();
-        savedPost.setIdPost(1L);
+        savedPost.setIdPost(101L);
         savedPost.setTitle("Título del Nuevo Post");
-        savedPost.setContent("Contenido del post...");
-        savedPost.setCreatedAt(LocalDateTime.now());
+        savedPost.setAuthor(author);
 
-        // Configuramos el mock para que devuelva la entidad Post, que es lo que el método espera.
+        // Damos el guion a los mocks
+        when(authorRepository.findById(1L)).thenReturn(Optional.of(author)); // <-- ¡Y AQUÍ!
         when(postService.savePost(any(PostCreateRequestDTO.class))).thenReturn(savedPost);
+        // --- FIN DE LA SOLUCIÓN ---
 
-        // Act & Assert
+        // --- 2. Act & 3. Assert ---
         mockMvc.perform(post("/api/posts")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.title").value("Título del Nuevo Post"));
+                .andExpect(jsonPath("$.title", is("Título del Nuevo Post")));
     }
 
     @Test
@@ -194,12 +213,11 @@ class PostControllerTest {
         long nonExistentId = 99L;
         // Configuramos el mock para que lance la excepción esperada del servicio.
         // Usamos org.mockito.Mockito.doThrow para métodos void.
-        org.mockito.Mockito.doThrow(new jakarta.persistence.EntityNotFoundException())
+        doThrow(new jakarta.persistence.EntityNotFoundException())
                 .when(postService).deletePost(nonExistentId);
 
         // Act & Assert
         mockMvc.perform(delete("/api/posts/{id}", nonExistentId))
                 .andExpect(status().isNotFound()); // Espera un estado HTTP 404 Not Found
     }
-
 }

@@ -99,6 +99,28 @@ class GitHubAuthServiceTest {
         assertThat(exception.getMessage()).contains("GitHub devolvió una respuesta vacía");
     }
 
+    // --- INICIO DE LA SOLUCIÓN: NUEVO TEST PARA COBERTURA ---
+
+    @Test
+    @DisplayName("exchangeCodeForToken debería lanzar una excepción si el cuerpo de la respuesta está vacío")
+    void exchangeCodeForToken_WhenBodyIsEmpty_ShouldThrowException() {
+        // --- 1. Arrange ---
+        String code = "some-code";
+        // Simulamos una respuesta con un cuerpo que es un String vacío.
+        ResponseEntity<String> emptyBodyResponse = new ResponseEntity<>("", HttpStatus.OK);
+
+        when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(emptyBodyResponse);
+
+        // --- 2. Act & 3. Assert ---
+        // Verificamos que se lanza la excepción correcta.
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            gitHubAuthService.exchangeCodeForToken(code);
+        });
+
+        assertThat(exception.getMessage()).contains("GitHub devolvió una respuesta vacía");
+    }
+
     @Test
     @DisplayName("getUserInfo debería devolver la información del usuario cuando el token es válido")
     void getUserInfo_WhenTokenIsValid_ShouldReturnUserInfo() {
